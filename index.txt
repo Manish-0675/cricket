@@ -1,0 +1,9 @@
+﻿Cricket Score Tracker
+0 1 2 3 4 5 6
+Wicket Wide No Ball Same Ball
+Undo 
+
+Runs: 0 | Balls: 0 | Wickets: 0 | Extras: 0 | Overs: 0.0
+Run Rate: 0.00 | Economy: 0.00 
+Reset Match 
+
