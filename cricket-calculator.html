@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cricket Score Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      padding: 20px;
+      text-align: center;
+    }
+    h1 {
+      color: green;
+    }
+    .tracker {
+      background: white;
+      padding: 20px;
+      max-width: 500px;
+      margin: auto;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #ccc;
+    }
+    .buttons button {
+      margin: 5px;
+      padding: 10px 15px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .run { background-color: #1e7e34; color: white; }
+    .special { background-color: #007bff; color: white; }
+    .wicket { background-color: #dc3545; color: white; }
+    .same.active { background-color: #9b59b6; color: white; }
+    .same.inactive { background-color: #6f42c1; color: white; }
+    .undo { background-color: #e67e22; color: white; }
+    .reset, .switch { margin-top: 15px; padding: 10px 20px; background-color: #6c757d; color: white; border: none; border-radius: 5px; }
+    textarea {
+      width: 100%;
+      height: 120px;
+      margin-top: 15px;
+      resize: none;
+      font-size: 16px;
+    }
+    .stats {
+      margin-top: 15px;
+      background-color: #eee;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Cricket Score Tracker</h1>
+  <div class="tracker">
+    <div class="buttons">
+      <button class="run" onclick="handleRun(0)">0</button>
+      <button class="run" onclick="handleRun(1)">1</button>
+      <button class="run" onclick="handleRun(2)">2</button>
+      <button class="run" onclick="handleRun(3)">3</button>
+      <button class="run" onclick="handleRun(4)">4</button>
+      <button class="run" onclick="handleRun(5)">5</button>
+      <button class="run" onclick="handleRun(6)">6</button><br/>
+      <button class="wicket" onclick="handleWicket()">Wicket</button>
+      <button class="special" onclick="handleExtra('Wd')">Wide</button>
+      <button class="special" onclick="handleExtra('Nb')">No Ball</button>
+      <button id="sameBallBtn" class="same inactive" onclick="toggleSameBall()">Same Ball</button><br/>
+      <button class="undo" onclick="undo()">Undo</button>
+    </div>
+
+    <textarea id="log" readonly></textarea>
+
+    <div class="stats" id="stats"></div>
+
+    <button class="switch" onclick="switchInnings()">Switch to 2nd Innings</button><br/>
+    <button class="reset" onclick="resetMatch()">Reset Match</button>
+  </div>
+
+  <script>
+    let runs = 0;
+    let balls = 0;
+    let wickets = 0;
+    let extras = 0;
+    let log = [];
+    let history = [];
+    let sameBallMode = false;
+
+    let currentInnings = 1;
+    let firstInningsScore = 0;
+    let target = 0;
+    let matchOver = false;
+
+    function updateDisplay() {
+      const completedOvers = Math.floor(balls / 6);
+      const remainingBalls = balls % 6;
+      const oversText = `${completedOvers}.${remainingBalls}`;
+      const runRate = balls > 0 ? (runs / (balls / 6)).toFixed(2) : "0.00";
+      const economy = balls > 0 ? ((runs + extras) / (balls / 6)).toFixed(2) : "0.00";
+
+      let displayLog = "";
+      let legalCount = 0;
+
+      for (let i = 0; i < log.length; i++) {
+        const entry = log[i];
+        displayLog += entry + " ";
+        if (!entry.includes("Wd") && !entry.includes("Nb") && !entry.includes("*")) {
+          legalCount++;
+          if (legalCount % 6 === 0) {
+            displayLog += "\n";
+          }
+        }
+      }
+
+      document.getElementById("log").value = displayLog.trim();
+
+      let runsRemainingText = "";
+      if (currentInnings === 2) {
+        const remaining = target - runs;
+        runsRemainingText = `Target: ${target} | Runs Remaining: ${remaining > 0 ? remaining : 0}`;
+      }
+
+      document.getElementById("stats").innerHTML =
+        `Innings: ${currentInnings} | Runs: ${runs} | Balls: ${balls} | Wickets: ${wickets} | Extras: ${extras} | Overs: ${oversText}<br/>` +
+        `Run Rate: ${runRate} | Economy: ${economy}<br/>` +
+        runsRemainingText;
+
+      if (currentInnings === 2 && !matchOver && runs >= target) {
+        matchOver = true;
+      }
+    }
+
+    function handleRun(run) {
+      if (matchOver) return;
+      if (sameBallMode) {
+        runs += run;
+        log.push(run + "*");
+        history.push({ type: 'same', value: run + "*" });
+        sameBallMode = false;
+        updateSameBallButton();
+      } else {
+        runs += run;
+        balls++;
+        log.push(run.toString());
+        history.push({ type: 'run', value: run });
+      }
+      updateDisplay();
+    }
+
+    function handleWicket() {
+      if (matchOver) return;
+      if (sameBallMode) {
+        wickets++;
+        log.push("W*");
+        history.push({ type: 'same', value: "W*" });
+        sameBallMode = false;
+        updateSameBallButton();
+      } else {
+        wickets++;
+        balls++;
+        log.push("W");
+        history.push({ type: 'wicket' });
+      }
+      updateDisplay();
+    }
+
+    function handleExtra(type) {
+      if (matchOver) return;
+      extras++;
+      let symbol = sameBallMode ? type + "*" : type;
+      let runAdded = 0;
+      if (type === "Nb") {
+        runs += 1;
+        runAdded = 1;
+      }
+      log.push(symbol);
+      history.push({ type: 'extra', value: symbol, runAdded: runAdded });
+
+      if (sameBallMode) {
+        sameBallMode = false;
+        updateSameBallButton();
+      }
+
+      updateDisplay();
+    }
+
+    function toggleSameBall() {
+      sameBallMode = !sameBallMode;
+      updateSameBallButton();
+    }
+
+    function updateSameBallButton() {
+      const btn = document.getElementById("sameBallBtn");
+      btn.className = sameBallMode ? "same active" : "same inactive";
+    }
+
+    function undo() {
+      if (matchOver) return;
+      const last = history.pop();
+      if (!last) return;
+
+      const val = last.value;
+
+      if (last.type === 'run') {
+        runs -= val;
+        balls--;
+        log.pop();
+      } else if (last.type === 'wicket') {
+        wickets--;
+        balls--;
+        log.pop();
+      } else if (last.type === 'extra') {
+        extras--;
+        if (last.runAdded) runs -= last.runAdded;
+        log.pop();
+      } else if (last.type === 'same') {
+        if (val.includes("W")) wickets--;
+        const num = parseInt(val);
+        if (!isNaN(num)) runs -= num;
+        log.pop();
+      }
+
+      sameBallMode = false;
+      updateSameBallButton();
+      updateDisplay();
+    }
+
+    function switchInnings() {
+      if (currentInnings === 1) {
+        firstInningsScore = runs;
+        target = firstInningsScore + 1;
+        currentInnings = 2;
+        runs = 0;
+        balls = 0;
+        wickets = 0;
+        extras = 0;
+        log = [];
+        history = [];
+        sameBallMode = false;
+        matchOver = false;
+        updateSameBallButton();
+        updateDisplay();
+      }
+    }
+
+    function resetMatch() {
+      runs = 0;
+      balls = 0;
+      wickets = 0;
+      extras = 0;
+      log = [];
+      history = [];
+      sameBallMode = false;
+      currentInnings = 1;
+      target = 0;
+      matchOver = false;
+      updateSameBallButton();
+      updateDisplay();
+    }
+
+    updateDisplay();
+  </script>
+</body>
+</html>
